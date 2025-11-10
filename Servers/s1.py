@@ -182,43 +182,6 @@ def signin(client_sock):
     # -------------------------------
 
 
-"""def signin(client_sock):
-    client_sock.send(b"Enter Username: ")
-    username = client_sock.recv(1024).decode().strip()
-    client_sock.send(b"Enter Password: ")
-    password = client_sock.recv(1024).decode().strip()
-    
-    attempts = 3
-    while attempts > 0:
-        try:
-            # Use SQLite to verify credentials
-            conn = sqlite3.connect("users.db")
-            cursor = conn.cursor()
-            cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-            user = cursor.fetchone()
-            
-            if user:
-                client_sock.send(b"Login successful!\n")
-                conn.close()
-                return True
-            else:
-                client_sock.send(b"Invalid credentials!\n")
-                attempts -= 1
-                if attempts > 0:
-                    client_sock.send(b"Try again.\nEnter Username: ")
-                    username = client_sock.recv(1024).decode().strip()
-                    client_sock.send(b"Enter Password: ")
-                    password = client_sock.recv(1024).decode().strip()
-                elif attempts == 0:
-                    client_sock.send(b"Too many failed attempts.\n ---EXITING---")
-                    print(f"Too many failed attempts. Connection closed with {client_sock}")
-                    conn.close()
-                    return False
-        except sqlite3.Error as e:
-            print(f"Database error: {e}")
-            client_sock"""
-    # -------------------------------
-
 
 def main():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

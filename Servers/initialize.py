@@ -2,13 +2,115 @@ from __future__ import print_function
 import mysql.connector
 from mysql.connector import Error, errorcode
 from configparser import ConfigParser
+from datetime import datetime
+import os
 import time
+import bcrypt
 
 
-class Database:
+class Utils:
+    # Utilities
+
+    #-------Loading-------
+    def loading(self, flag = 0):
+        for i in range(4):
+            print(".",end=" ")
+            time.sleep(0.5)
+        if flag == 0:
+            print(" ")
+    #---------------------
+
+
+class Configration(Utils):
     def __init__(self):
+        self.directory = file_path = os.path.abspath("Config")
+        self.config_file = "server.confg"
+
+
+    def check_config(self):
+        print("[ * ] Vrifieng the configrations file",end="")
+        self.loading(1)
+        file_path = os.path.join(self.directory, self.config_file)
+        if os.path.isfile(file_path):
+            print(": OK")
+            print(f"[ + ] The configer file '{file_path}' Found.")
+        else:
+            print(": NO")
+            print(f"[ - ] The configer file '{file_path}' does not exist or is not a file.")
+            self.create_config()
+    
+    def create_config(self):
+        print("[ + ] Creating Configration file", end=' ')
+        content = '''# Chat server configuration
+# Save as /home/dell/Documents/Coding/git_test/backup_files/TCP-communication-/Servers/chat.confg
+
+[server]
+# Address and port to listen on
+bind_address = 0.0.0.0
+port = 12345
+protocol = tcp
+
+[mysql]
+host = localhost
+user = dell
+password = 1234 
+database = chat1
+
+# Text shown to clients after connect
+welcome_message = Welcome to the Chat Server!
+motd = Be respectful. No spam.
+
+# Maximum simultaneous connected clients
+max_clients = 100
+
+[logging]
+level = info       # debug, info, warn, error
+file = /var/log/chat_server.log
+rotate = daily
+max_size_mb = 50
+
+[security]
+enable_tls = false
+tls_cert = /etc/ssl/certs/chat_server.crt
+tls_key = /etc/ssl/private/chat_server.key
+
+# Authentication options
+require_auth = false
+auth_method = password  # password, token, oauth
+# If require_auth = true, provide a user store or hook in your server implementation
+
+# IP/CIDR entries allowed to connect (comma separated), use * for all
+allowed_clients = *
+
+[limits]
+max_message_length = 2048
+max_join_rate_per_minute = 60   # connections per minute from same IP
+connection_timeout_seconds = 300
+heartbeat_interval_seconds = 60
+
+[storage]
+message_history_enabled = true
+history_retention_days = 30
+storage_path = /var/lib/chat_server/messages.db
+
+[users]
+# Example admin entry (store real hashed passwords in production)
+admin_user = admin
+admin_pass_hash = 
+
+# End of configuration'''
+        file_path = os.path.join(self.directory, self.config_file)
+        with open(file_path, "w") as f:
+            f.writelines(content)
+        print(": OK")
+
+
+
+class Database(Configration, Utils):
+    def __init__(self):
+        self.check_config()
         cfg = ConfigParser()
-        cfg_path = '/home/dell/Documents/Coding/git_test/backup_files/TCP-communication-/Servers/Config/server.confg'
+        cfg_path = os.path.join(self.directory, self.config_file)
         read_files = cfg.read(cfg_path)
         if not read_files or not cfg.has_section('mysql'):
             # warn and use defaults
@@ -19,12 +121,6 @@ class Database:
         self.password = cfg.get('mysql', 'password', fallback='').strip()
         self.database = cfg.get('mysql', 'database', fallback='chat1').strip()
         
-
-    def check_config(self):
-        # Check if the configuration file exists.
-        # We will verify the config file before providing values to the Database class.
-        # (In future this function may be moved to a dedicated config.py so it can be reused.)
-        pass
 
     def half_connection(self, max_attempts = 3):
         # Checking and establishing the connection with MySQL.
@@ -43,6 +139,7 @@ class Database:
                 #------------------------------------------------
 
                 if hcnx and hcnx.is_connected():
+                    print(": OK")
                     print("[ + ] Connected with the Database: OK")
                     return hcnx
             except Error as err:
@@ -143,7 +240,7 @@ class Database:
                 " PRIMARY KEY (`ID`)"
                 ") ENGINE=InnoDB"
             )
-        }  
+        }  # will add another table to store ip's of the users for security measures we will add in the future
         
         for table_name ,table_description in TABLES.items():
             try:
@@ -222,23 +319,156 @@ class Database:
                     return None
 #---------------------------------------------------------------------------------------------
 
+class Authentication(Database):
+    def __init__(self, client_sock, address):
+        super().__init__()
+        self.client_sock = client_sock
+        self.address = address
+        self.username = ""
 
     def signup(self):
         # function to signup for the users
-        pass
-    def signin(self):
-        # function to signin for the users
-        pass
-    def is_username_taken(self):
-        # Check if the user name  already exist or not.
-        pass
-    
-    def loading(self, flag = 0):
-        for i in range(4):
-            print(".",end=" ")
-            time.sleep(0.5)
-        if flag == 0:
-            print(" ")
+        self.client_sock.send(b"Enter Username: ")
+        username = self.client_sock.recv(1024).decode().strip()
+        self.client_sock.send(b"Enter Password: ")
+        password = self.lient_sock.recv(1024).decode().strip()
 
-"""full_connection(): Connection with the Database
-   half_connection(): Connection without the Database"""
+        # Check if the username already exists
+        if self.is_username_taken(username):
+            print("Username already taken. Please choose another.\n")
+            return
+        
+        # Hash the password before saving it to the database.
+        # Store as utf-8 string so it can be saved into TEXT/VARCHAR columns.
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        current_timestamp = datetime.now()
+
+        # If the username is available, insert into the database
+        try:
+            conn = self.full_connection()
+            if conn:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute(
+                        'INSERT INTO users (username, password, `Time[ YYYY-MM-DD HH:MM:SS ]`) VALUES (%s, %s, %s)',
+                        (username, hashed_password, current_timestamp)
+                    )
+                    conn.commit()
+
+                    # Send confirmation message to the client
+                    self.client_sock.send(b"Signup successful!\n")
+                    self.client_sock.send(f"Hello {username}.\n".encode('utf-8'))
+                    self.username = username # we will be refering the user as its username instead of there ip(address)
+
+                    print(f"New user signed up: {username}")
+                finally:
+                    try:
+                        cursor.close()
+                    except Exception:
+                        pass
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+        except Error as e:
+            print(f"Database error during signup: {e}")
+            print(b"An error occurred while processing your signup. Please try again later.\n")
+
+
+    def is_username_taken(self, username):
+        """Check if the username already exists in the MySQL database."""
+        try:
+            conn = self.full_connection()
+            if conn:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute('SELECT 1 FROM users WHERE username = %s', (username,))
+                    user = cursor.fetchone()
+                    return user is not None
+                finally:
+                    try:
+                        cursor.close()
+                    except Exception:
+                        pass
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+        except Error as e:
+            print(f"Database error while checking username: {e}")
+            return False
+        
+    def signin(self, max_attempts = 3):
+        """
+        Simple signin flow over a socket.
+        Returns True on success, False on failure.
+        """
+        self.client_sock.send(b"Enter Username: ")
+        username = self.client_sock.recv(1024).decode().strip()
+        self.client_sock.send(b"Enter Password: ")
+        password = self.client_sock.recv(1024).decode().strip()
+
+        attempts = 0
+        while attempts <= max_attempts;
+            try:
+                conn = self.full_connection()
+                if not conn:
+                    print(b"Database unavailable. Try later.\n")
+                    return False
+
+                cursor = conn.cursor()
+                try:
+                    cursor.execute('SELECT password FROM users WHERE username = %s', (username,))
+                    row = cursor.fetchone()
+                    if not row:
+                        self.client_sock.send(b"Invalid username or password.\n")
+                        return False
+
+                    stored = row[0]  # may be bytes or str
+                    # Normalize to bytes for bcrypt
+                    if isinstance(stored, str):
+                        stored_bytes = stored.encode('utf-8')
+                    else:
+                        stored_bytes = stored
+
+                    if bcrypt.checkpw(password.encode('utf-8'), stored_bytes):
+                        self.client_sock.send(b"Signin successful!\n")
+                        self.username = username
+                        self.client_sock.send(f"Welcome back {self.username}.")
+                        return True
+                    else:
+                        attempts=+1
+                        self.client_sock.send(b"Invalid username or password.\n")
+                        self.client_sock.send(f"[ * ] Retrying ({attempts}/{max_attempts})...".encode('utf-8'))
+                        if attempts <= max_attempts:
+                            self.client_sock.send(b"Enter Username: ")
+                            username = self.client_sock.recv(1024).decode().strip()
+                            self.client_sock.send(b"Enter Password: ")
+                            password = self.client_sock.recv(1024).decode().strip()
+                        else:
+                            self.client_sock.send(b"Too mant failded attemps.\n ---EXITING---")
+                            print(f"[8]Too many failed attempts. Connection closed with {self.address}")
+                            cursor.close()
+                            conn.close()
+                            return False
+                finally:
+                    try:
+                        cursor.close()
+                    except Exception:
+                        pass
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+            except Error as e:
+                print(f"Database error during signin: {e}")
+                print(b"An error occurred. Please try again later.\n")
+                return False
+        
+
+        
+        
+        
+
+    """full_connection(): Connection with the Database
+    half_connection(): Connection without the Database"""
