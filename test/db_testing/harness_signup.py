@@ -13,7 +13,7 @@ spec.loader.exec_module(t2)
 signup = t2.signup
 is_username_taken = t2.is_username_taken
 
-from get_mysql_connection import get_mysql_connection
+from test.db_testing.get_mysql_connection import get_mysql_connection
 
 
 def client_sim(sock, username, password):

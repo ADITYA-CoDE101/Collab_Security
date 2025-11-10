@@ -1,0 +1,58 @@
+# Chat server configuration
+# Save as /home/dell/Documents/Coding/git_test/backup_files/TCP-communication-/Servers/chat.confg
+
+[server]
+# Address and port to listen on
+bind_address = 0.0.0.0
+port = 12345
+protocol = tcp
+
+[mysql]
+host = localhost
+user = dell
+password = 1234 
+database = chat1
+
+# Text shown to clients after connect
+welcome_message = Welcome to the Chat Server!
+motd = Be respectful. No spam.
+
+# Maximum simultaneous connected clients
+max_clients = 100
+
+[logging]
+level = info       # debug, info, warn, error
+file = /var/log/chat_server.log
+rotate = daily
+max_size_mb = 50
+
+[security]
+enable_tls = false
+tls_cert = /etc/ssl/certs/chat_server.crt
+tls_key = /etc/ssl/private/chat_server.key
+
+# Authentication options
+require_auth = false
+auth_method = password  # password, token, oauth
+# If require_auth = true, provide a user store or hook in your server implementation
+
+# IP/CIDR entries allowed to connect (comma separated), use * for all
+allowed_clients = *
+
+[limits]
+max_message_length = 2048
+max_join_rate_per_minute = 60   # connections per minute from same IP
+connection_timeout_seconds = 300
+heartbeat_interval_seconds = 60
+
+[storage]
+message_history_enabled = true
+history_retention_days = 30
+storage_path = /var/lib/chat_server/messages.db
+
+[users]
+# Example admin entry (store real hashed passwords in production)
+admin_user = admin
+admin_pass_hash = 
+
+# End of configuration
