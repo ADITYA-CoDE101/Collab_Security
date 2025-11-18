@@ -4,6 +4,7 @@ from mysql.connector import Error, errorcode
 from configparser import ConfigParser
 from datetime import datetime
 import os
+import sys
 import time
 import bcrypt
 
@@ -19,21 +20,34 @@ class Utils:
         if flag == 0:
             print(" ")
     #---------------------
+    #-------From Net------
+    def simple_spinner(self):
+        spinner_chars = ['-', '\\', '|', '/']
+        for _ in range(20): # Simulate a task that takes 20 steps
+            for char in spinner_chars:
+                sys.stdout.write(f'\rLoading {char}')
+                sys.stdout.flush()
+                time.sleep(0.1)
+        sys.stdout.write('\rDone!      \n') # Clear the line and add a newline
+    #---------------------
+
+    
 
 
 class Configration(Utils):
     def __init__(self):
-        self.directory = file_path = os.path.abspath("Config")
+        self.directory = os.path.abspath("Config")
+        os.makedirs(self.directory, exist_ok=True) # checek if the folder exist then returns nothing, if do not then it automaticaly create one.
         self.config_file = "server.confg"
 
 
     def check_config(self):
-        print("[ * ] Vrifieng the configrations file",end="")
+        print("[ * ] Verifying the configuration file", end="")
         self.loading(1)
         file_path = os.path.join(self.directory, self.config_file)
         if os.path.isfile(file_path):
             print(": OK")
-            print(f"[ + ] The configer file '{file_path}' Found.")
+            print(f"[ + ] The configuration file '{file_path}' found.")
         else:
             print(": NO")
             print(f"[ - ] The configer file '{file_path}' does not exist or is not a file.")
@@ -101,13 +115,14 @@ admin_pass_hash =
 # End of configuration'''
         file_path = os.path.join(self.directory, self.config_file)
         with open(file_path, "w") as f:
-            f.writelines(content)
+            f.write(content)
         print(": OK")
 
 
 
 class Database(Configration, Utils):
     def __init__(self):
+        super().__init__()
         self.check_config()
         cfg = ConfigParser()
         cfg_path = os.path.join(self.directory, self.config_file)
@@ -125,7 +140,7 @@ class Database(Configration, Utils):
     def half_connection(self, max_attempts = 3):
         # Checking and establishing the connection with MySQL.
         attempts = 0
-        while attempts <= max_attempts:
+        while attempts < max_attempts:
             try:
                 print("[ * ] Connecting with the database",end=" ")
                 self.loading()
@@ -175,8 +190,8 @@ class Database(Configration, Utils):
             print("[ * ] Checking database existence", end=" ")
             self.loading(flag=1)
             cursor.execute(f"USE `{self.database}`")
-            # print(": OK")
-            # return True
+            print(": OK")
+            return True
         
         except Error as err:
             if getattr(err, 'errno', None) == errorcode.ER_BAD_DB_ERROR:
@@ -210,6 +225,7 @@ class Database(Configration, Utils):
                 f"CREATE DATABASE {dbname} DEFAULT CHARACTER SET 'utf8'")
         except Error as err:
             print(f"Failed creating database: {err}")
+            # may do a conedtion check
             return False
             
         try:
@@ -217,15 +233,15 @@ class Database(Configration, Utils):
             print(f"[ + ] Switching to the database: {dbname}")
         except:
             print("[ - ] Unable to switch to the database; checking the connection...")
-            conn = getattr(cursor, 'connection', None)
-            """if conn is None:
+            hcnx = getattr(cursor, 'connection', None)
+            """if hcnx is None:
                 raise RuntimeError("Cursor has no 'connection' attribute; pass the connection instead.")"""
             try:
-                if conn.is_connected():
+                if hcnx.is_connected():
                     return True
                 # Optionally try to ping and reconnect automatically
-                conn.ping(reconnect=True, attempts=3, delay=1)  # mysql-connector specific
-                return conn.is_connected()
+                hcnx.ping(reconnect=True, attempts=3, delay=1)  # mysql-connector specific
+                return hcnx.is_connected()
             except Error as e:
                 # connection not alive
                 return False
@@ -236,7 +252,7 @@ class Database(Configration, Utils):
                 "`ID` INT(11) NOT NULL AUTO_INCREMENT,"
                 "`Username` VARCHAR(255) NOT NULL UNIQUE,"
                 "`Password` BLOB NOT NULL,"
-                "`Time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+                "`Time_Stamp` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,"
                 " PRIMARY KEY (`ID`)"
                 ") ENGINE=InnoDB"
             )
@@ -268,7 +284,7 @@ class Database(Configration, Utils):
                     'database': self.database
                 }
         attempts = 0
-        while attempts <= max_attempts:
+        while attempts < max_attempts:
             try:
                 print("[ * ] Connecting with the database",end=" ")
                 self.loading()
@@ -281,10 +297,11 @@ class Database(Configration, Utils):
                     return fcnx
                 
             except Error as err:
-                attempts += 1
+                
             #   if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
                 if getattr(err, 'errno', None) == errorcode.ER_ACCESS_DENIED_ERROR:
                     print("[ - ] Invalid username/password. Please check the config or re-enter credentials.")
+                    attempts += 1
                     if attempts <= max_attempts:
                         print(f"[ * ] Retrying ({attempts}/{max_attempts})...")
                         self.user = input("Username: ").strip()
@@ -294,12 +311,12 @@ class Database(Configration, Utils):
                         continue
                     else:
                         print("[ - ] Attempt limit reached. Please update the config file and try again.")
-                        return None
+                        return False
                 elif getattr(err, 'errno', None) == errorcode.ER_BAD_DB_ERROR:
                     print(f"[ - ] Database {self.database} does not exist.")
                     hcnx = self.half_connection()
                     if not hcnx:
-                        return None
+                        return False
                     cursor = hcnx.cursor()
                     if self.create_db(cursor): # It may break
                         try:
@@ -313,10 +330,10 @@ class Database(Configration, Utils):
                             if fcnx and fcnx.is_connected():
                                 return fcnx
                         except Error:
-                            return None
+                            return False
                 else:
                     print(f"[ - ] Unexpected error: {err}")
-                    return None
+                    return False
 #---------------------------------------------------------------------------------------------
 
 class Authentication(Database):
@@ -331,29 +348,29 @@ class Authentication(Database):
         self.client_sock.send(b"Enter Username: ")
         username = self.client_sock.recv(1024).decode().strip()
         self.client_sock.send(b"Enter Password: ")
-        password = self.lient_sock.recv(1024).decode().strip()
+        password = self.client_sock.recv(1024).decode().strip()
 
         # Check if the username already exists
         if self.is_username_taken(username):
-            print("Username already taken. Please choose another.\n")
+            self.client_sock.send(b"Username already taken. Please choose another.\n")
             return
         
         # Hash the password before saving it to the database.
         # Store as utf-8 string so it can be saved into TEXT/VARCHAR columns.
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-        current_timestamp = datetime.now()
+        current_timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # If the username is available, insert into the database
         try:
-            conn = self.full_connection()
-            if conn:
-                cursor = conn.cursor()
+            fcnx = self.full_connection()
+            if fcnx:
+                cursor = fcnx.cursor()
                 try:
                     cursor.execute(
-                        'INSERT INTO users (username, password, `Time[ YYYY-MM-DD HH:MM:SS ]`) VALUES (%s, %s, %s)',
+                        'INSERT INTO users (Username, Password, `Time_Stamp`) VALUES (%s, %s, %s)',
                         (username, hashed_password, current_timestamp)
                     )
-                    conn.commit()
+                    fcnx.commit()
 
                     # Send confirmation message to the client
                     self.client_sock.send(b"Signup successful!\n")
@@ -367,22 +384,23 @@ class Authentication(Database):
                     except Exception:
                         pass
                     try:
-                        conn.close()
+                        fcnx.close()
                     except Exception:
                         pass
         except Error as e:
             print(f"Database error during signup: {e}")
-            print(b"An error occurred while processing your signup. Please try again later.\n")
+            self.client_sock.send(b"An error occurred while processing your signup. Please try again later.\n")
+
 
 
     def is_username_taken(self, username):
         """Check if the username already exists in the MySQL database."""
         try:
-            conn = self.full_connection()
-            if conn:
-                cursor = conn.cursor()
+            fcnx = self.full_connection()
+            if fcnx:
+                cursor = fcnx.cursor()
                 try:
-                    cursor.execute('SELECT 1 FROM users WHERE username = %s', (username,))
+                    cursor.execute('SELECT 1 FROM users WHERE Username = %s', (username,))
                     user = cursor.fetchone()
                     return user is not None
                 finally:
@@ -391,7 +409,7 @@ class Authentication(Database):
                     except Exception:
                         pass
                     try:
-                        conn.close()
+                        fcnx.close()
                     except Exception:
                         pass
         except Error as e:
@@ -409,16 +427,16 @@ class Authentication(Database):
         password = self.client_sock.recv(1024).decode().strip()
 
         attempts = 0
-        while attempts <= max_attempts;
+        while attempts < max_attempts:
             try:
-                conn = self.full_connection()
-                if not conn:
+                fcnx = self.full_connection()
+                if not fcnx:
                     print(b"Database unavailable. Try later.\n")
                     return False
 
-                cursor = conn.cursor()
+                cursor = fcnx.cursor()
                 try:
-                    cursor.execute('SELECT password FROM users WHERE username = %s', (username,))
+                    cursor.execute('SELECT Password FROM users WHERE Username = %s', (username,))
                     row = cursor.fetchone()
                     if not row:
                         self.client_sock.send(b"Invalid username or password.\n")
@@ -434,22 +452,22 @@ class Authentication(Database):
                     if bcrypt.checkpw(password.encode('utf-8'), stored_bytes):
                         self.client_sock.send(b"Signin successful!\n")
                         self.username = username
-                        self.client_sock.send(f"Welcome back {self.username}.")
+                        self.client_sock.send(f"Welcome back {self.username}.".encode('utf-8'))
                         return True
                     else:
-                        attempts=+1
+                        attempts += 1
                         self.client_sock.send(b"Invalid username or password.\n")
                         self.client_sock.send(f"[ * ] Retrying ({attempts}/{max_attempts})...".encode('utf-8'))
-                        if attempts <= max_attempts:
+                        if attempts < max_attempts:
                             self.client_sock.send(b"Enter Username: ")
                             username = self.client_sock.recv(1024).decode().strip()
                             self.client_sock.send(b"Enter Password: ")
                             password = self.client_sock.recv(1024).decode().strip()
                         else:
-                            self.client_sock.send(b"Too mant failded attemps.\n ---EXITING---")
+                            self.client_sock.send(b"Too many failed attempts.\n---EXITING---")
                             print(f"[8]Too many failed attempts. Connection closed with {self.address}")
                             cursor.close()
-                            conn.close()
+                            fcnx.close()
                             return False
                 finally:
                     try:
@@ -457,7 +475,7 @@ class Authentication(Database):
                     except Exception:
                         pass
                     try:
-                        conn.close()
+                        fcnx.close()
                     except Exception:
                         pass
             except Error as e:
@@ -465,10 +483,17 @@ class Authentication(Database):
                 print(b"An error occurred. Please try again later.\n")
                 return False
         
+# class Initialize(Configration, Database):
+#     def __init__(self):
+#         self.check_config()
+#         self.db_check()
 
+# c = Configration()
+# c.check_config()
         
-        
-        
+# d = Database()
+# d.db_check()
+    
 
-    """full_connection(): Connection with the Database
+"""full_connection(): Connection with the Database
     half_connection(): Connection without the Database"""

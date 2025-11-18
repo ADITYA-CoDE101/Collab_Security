@@ -1,15 +1,19 @@
+import sys
+import time
 import socket
 import threading
-import sys
-import sqlite3
-import time
+from initialize import Utils, Authentication, Database
 
-IP = "192.168.87.45"
+
+IP = "0.0.0.0"
 PORT = 9898
 UACL = [] #  Unauthenticated Client List
 ACL = [] #   Authenticated Client List
 CLIENTS = [] # All Clients List
 CLIENTS_LOCK = threading.Lock()
+
+utls = Utils()
+
 
 def broadcast(message, sender_sock):
     with CLIENTS_LOCK:
@@ -19,7 +23,7 @@ def broadcast(message, sender_sock):
                     A_client.send(message)
                 except Exception as e:                      # except (BrokenPipeError, ConnectionResetError) as e:
                     print(f"[1]Connection Closed due to an Exeption: {e}")
-                    terminator(A_client, client_sock_addrs="will add sql to client address mapping.")                                      # Termination
+                    terminator(A_client, client_sock_addrs=None)                                      # Termination
                     # return
                     continue
                 
@@ -35,7 +39,8 @@ def handle_client(client_sock, client_address):
             data = client_sock.recv(1024)
             if not data:
                 break
-            terminate_msg = data.decode()
+
+            terminate_msg = data.decode(errors="ignore") #If a client sends binary (or malformed UTF-8), server will crash.
             if terminate_msg.startswith("RQST-> DISCONNECT"):
                 print(f"{terminate_msg}")
                 terminator(client_sock, client_address, cmd=False)
@@ -92,12 +97,13 @@ def terminator(client_sock, client_sock_addrs, cmd=True):
 
 
 def authentication(client_sock, client_address):
+    auth = Authentication(client_sock, client_address)
     client_sock.send(b"\t\tWelcome! To the Chat`!`\nDo SignUp/SingIn")
     client_sock.send(b"Type [ 1 ] for signUp or [ 2 ] for SignIn")
     opt = client_sock.recv(1024).decode()
     if opt == "1":
-        signup(client_sock)
-        if not signin(client_sock):             # Exit              [ if statment works if the  given condition is TRUE or NOT FALSE ]
+        auth.signup()
+        if not auth.signin():             # Exit              [ if statment works if the  given condition is TRUE or NOT FALSE ]
             terminator(client_sock, client_address)              # Termination
             return False
             
@@ -109,7 +115,7 @@ def authentication(client_sock, client_address):
                 return True
         
     elif opt == "2":
-        if not signin(client_sock):             # if signin -> Trur then the if body will not execut .  # Exit
+        if not auth.signin():             # if signin -> Trur then the if body will not execut .  # Exit
             print("invalid credential")
             terminator(client_sock, client_address)              # Termination
             return False
@@ -125,69 +131,18 @@ def authentication(client_sock, client_address):
         terminator(client_sock, client_address)                  # Termination
         return False
         
-
-
-def signup(client_sock):
-    client_sock.send(b"Enter Username: ")
-    username = client_sock.recv(1024).decode().strip()
-    client_sock.send(b"Enter Password: ")
-    password = client_sock.recv(1024).decode().strip()
-    # Here you would normally save the username and password securely be will do this later
-    client_sock.send(b"Signup successful!\n")
-    client_sock.send(f"Hello {username}".encode())      # ???
-    with open("users.txt", "a") as f:                          # >[1]
-        f.write(f"\n{username}:{password}\n")
-    print("*"*50)
-    print("New user signed up:", username)
-
-    
-
-def signin(client_sock):
-    """
-    Handles user sign-in by prompting for username and password, checking credentials against 'users.txt'.
-    Allows up to 3 authentication attempts; returns True if successful, otherwise False.
-    Sends appropriate messages to the client socket for success or failure.
-    """
-    client_sock.send(b"Enter Username: ")
-    username = client_sock.recv(1024).decode().strip()
-    client_sock.send(b"Enter Password: ")
-    password = client_sock.recv(1024).decode().strip()
-    
-    attempts = 3
-    while attempts > 0:
-        with open("users.txt", "r") as f:
-            users = f.readlines()
-    
-            for user in users:
-                u, p = user.strip().split(":")
-                if u == username and p == password:
-                    client_sock.send(b"Login successful!\n")
-                    print(f"[+] {client_sock}: Authenticated")
-                    return True
-                else:
-                    pass
-
-        client_sock.send(b"Invalid credentials!\n")
-        attempts -= 1
-        if attempts > 0:
-            client_sock.send(b"Try again.\nEnter Username: ")
-            username = client_sock.recv(1024).decode().strip()
-            client_sock.send(b"Enter Password: ")
-            password = client_sock.recv(1024).decode().strip()
-        elif attempts == 0:
-            client_sock.send(b"Too mant failded attemps.\n ---EXITING---")
-            print(f"[8]Too many failed attempts. Connection closed with {client_sock}")
-            return False
-                    
-    # -------------------------------
-
-
+def initialize():
+    db = Database()
+    db.db_check()
 
 def main():
+    initialize()
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((IP, PORT))
     server.listen()
     print("[*] Server listening...")
+    utls.loading()
+    utls.simple_spinner()
 
     while True:
         try:

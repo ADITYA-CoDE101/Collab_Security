@@ -11,7 +11,7 @@ protocol = tcp
 host = localhost
 user = dell
 password = 1234 
-database = chat1
+database = chat2
 
 # Text shown to clients after connect
 welcome_message = Welcome to the Chat Server!
