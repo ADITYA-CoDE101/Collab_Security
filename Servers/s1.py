@@ -1,5 +1,6 @@
 import sys
 import time
+import signal
 import socket
 import threading
 from initialize import Utils, Authentication, Database
@@ -130,20 +131,33 @@ def authentication(client_sock, client_address):
         client_sock.send(b"[7]Invalid option. Connection closed.\n")
         terminator(client_sock, client_address)                  # Termination
         return False
+    
+
         
 def initialize():
     db = Database()
-    db.db_check()
+    if not db.db_check():
+        print("[ ! ] The credentials for the database are invalide!")
+        sys.exit(0)
 
 def main():
     initialize()
+    global server
+    #-----------------------------------
+    def signal_handler(sig, frame):
+        print('\n[ * ] Shutting down gracefully...')
+        server.close()
+        sys.exit(0)
+    #-------------------------------------
+    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C handler
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((IP, PORT))
     server.listen()
     print("[*] Server listening...")
     utls.loading()
     utls.simple_spinner()
-
+    
     while True:
         try:
             client, address = server.accept()

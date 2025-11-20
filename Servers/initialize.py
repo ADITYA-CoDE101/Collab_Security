@@ -162,11 +162,11 @@ class Database(Configration, Utils):
                 # if err.errno == errorcode.ER_ACCESS_DENIED_ERROR:
                 if getattr(err, 'errno', None) == errorcode.ER_ACCESS_DENIED_ERROR:
                     print("[ - ] Invalid username/password. Please check the config or re-enter credentials.")
-                    if attempts <= max_attempts:
+                    if attempts < max_attempts:
                         print(f"[ * ] Retrying ({attempts}/{max_attempts})...")
                         self.user = input("Username: ").strip()
                         self.password = input("Password: ").strip()
-                        continue
+                        
                     else:
                         print("[ - ] Attempt limit reached. Please update the config file and try again.")
                         return False
@@ -439,7 +439,8 @@ class Authentication(Database):
                     cursor.execute('SELECT Password FROM users WHERE Username = %s', (username,))
                     row = cursor.fetchone()
                     if not row:
-                        self.client_sock.send(b"Invalid username or password.\n")
+                        self.client_sock.send(b"Invalid username or password.")
+                        self.client_sock.send(b"Username does not exist.")
                         return False
 
                     stored = row[0]  # may be bytes or str
@@ -450,13 +451,13 @@ class Authentication(Database):
                         stored_bytes = stored
 
                     if bcrypt.checkpw(password.encode('utf-8'), stored_bytes):
-                        self.client_sock.send(b"Signin successful!\n")
+                        self.client_sock.send(b"Signin successful!")
                         self.username = username
-                        self.client_sock.send(f"Welcome back {self.username}.".encode('utf-8'))
+                        self.client_sock.send(f"\nWelcome back {self.username}.".encode('utf-8'))
                         return True
                     else:
                         attempts += 1
-                        self.client_sock.send(b"Invalid username or password.\n")
+                        self.client_sock.send(b"Invalid username or password.")
                         self.client_sock.send(f"[ * ] Retrying ({attempts}/{max_attempts})...".encode('utf-8'))
                         if attempts < max_attempts:
                             self.client_sock.send(b"Enter Username: ")

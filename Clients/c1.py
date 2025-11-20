@@ -117,6 +117,7 @@ def terminator(client, reason=None, req = False):
     
     
 def main():
+    client = None
     
     try:
         client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -128,7 +129,6 @@ def main():
         sender_thread.start()
         receiver_thread.start()
 
-    
         EXIT.wait()
         sender_thread.join()
         receiver_thread.join()
@@ -136,7 +136,13 @@ def main():
             
     except KeyboardInterrupt:
         print("Interrupted. Closing client.")
-        terminator(client,req=True)
+        # ensure threads and loops stop
+        EXIT.set()
+        if client is not None:
+            try:
+                terminator(client, req=True)
+            except Exception as e:
+                print(f"Error while terminating client: {e}")
         sys.exit()
         
         

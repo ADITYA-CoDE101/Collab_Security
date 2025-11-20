@@ -10,7 +10,7 @@ protocol = tcp
 [mysql]
 host = localhost
 user = dell
-password = 1234 
+password = 1234
 database = chat2
 
 # Text shown to clients after connect
