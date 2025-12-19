@@ -143,6 +143,8 @@ def initialize():
 def main():
     initialize()
     global server
+    client = None
+    address = None
     #-----------------------------------
     def signal_handler(sig, frame):
         print('\n[ * ] Shutting down gracefully...')
@@ -154,7 +156,7 @@ def main():
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind((IP, PORT))
     server.listen()
-    print("[*] Server listening...")
+    print("[ * ] Server listening...")
     utls.loading()
     utls.simple_spinner()
     

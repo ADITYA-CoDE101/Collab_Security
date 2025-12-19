@@ -237,11 +237,13 @@ class Database(Configration, Utils):
             """if hcnx is None:
                 raise RuntimeError("Cursor has no 'connection' attribute; pass the connection instead.")"""
             try:
-                if hcnx.is_connected():
+                if hcnx and hcnx.is_connected():
                     return True
                 # Optionally try to ping and reconnect automatically
-                hcnx.ping(reconnect=True, attempts=3, delay=1)  # mysql-connector specific
-                return hcnx.is_connected()
+                if hcnx:
+                    hcnx.ping(reconnect=True, attempts=3, delay=1)  # mysql-connector specific
+                    return hcnx.is_connected()
+                return False
             except Error as e:
                 # connection not alive
                 return False
@@ -443,12 +445,14 @@ class Authentication(Database):
                         self.client_sock.send(b"Username does not exist.")
                         return False
 
-                    stored = row[0]  # may be bytes or str
+                    stored = row[0] if isinstance(row, tuple) else row.get('Password')  # may be bytes or str
                     # Normalize to bytes for bcrypt
                     if isinstance(stored, str):
                         stored_bytes = stored.encode('utf-8')
-                    else:
+                    elif isinstance(stored, bytes):
                         stored_bytes = stored
+                    else:
+                        stored_bytes = str(stored).encode('utf-8')
 
                     if bcrypt.checkpw(password.encode('utf-8'), stored_bytes):
                         self.client_sock.send(b"Signin successful!")
