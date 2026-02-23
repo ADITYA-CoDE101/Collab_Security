@@ -55,7 +55,7 @@ def signup():
             cursor = conn.cursor()
             try:
                 cursor.execute(
-                    'INSERT INTO users (username, password, `Time[ YYYY-MM-DD HH:MM:SS ]`) VALUES (%s, %s, %s)',
+                    'INSERT INTO users (username, password, `Time_Stamp`) VALUES (%s, %s, %s)',
                     (username, hashed_password, current_timestamp)
                 )
                 conn.commit()
