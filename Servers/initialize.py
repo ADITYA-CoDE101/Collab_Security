@@ -3,6 +3,7 @@ import mysql.connector
 from mysql.connector import Error, errorcode
 from configparser import ConfigParser
 from datetime import datetime
+from dotenv import load_dotenv
 import os
 import sys
 import time
@@ -36,7 +37,7 @@ class Utils:
 
 class Configration(Utils):
     def __init__(self):
-        self.directory = os.path.abspath("Config")
+        self.directory = os.path.abspath("Config") # absolute path of the folder where we will be storing the config file.
         os.makedirs(self.directory, exist_ok=True) # checek if the folder exist then returns nothing, if do not then it automaticaly create one.
         self.config_file = "server.confg"
 
@@ -124,19 +125,37 @@ class Database(Configration, Utils):
     def __init__(self):
         super().__init__()
         self.check_config()
+        # cfg = ConfigParser()
+        # cfg_path = os.path.join(self.directory, self.config_file)
+        # read_files = cfg.read(cfg_path)
+        # if not read_files or not cfg.has_section('mysql'):
+        #     # warn and use defaults
+        #     print(f"[ ! ] Warning: config not found at {cfg_path}; using defaults")
+        host, user, password, database_name = self.fetch_db_credentials()
+        self.host = self.resolve_env(host)
+        self.user = self.resolve_env(user)
+        self.password = self.resolve_env(password)
+        self.database = self.resolve_env(database_name)
+        
+    def fetch_db_credentials(self):
+        # Fetching the database credentials from the config file.
         cfg = ConfigParser()
         cfg_path = os.path.join(self.directory, self.config_file)
         read_files = cfg.read(cfg_path)
         if not read_files or not cfg.has_section('mysql'):
-            # warn and use defaults
             print(f"[ ! ] Warning: config not found at {cfg_path}; using defaults")
+            return 'localhost', 'root', '', 'chat1'
 
-        self.host = cfg.get('mysql', 'host', fallback='localhost').strip()
-        self.user = cfg.get('mysql', 'user', fallback='root').strip()
-        self.password = cfg.get('mysql', 'password', fallback='').strip()
-        self.database = cfg.get('mysql', 'database', fallback='chat1').strip()
-        
-
+        host = cfg.get('mysql', 'host', fallback='localhost').strip()
+        user = cfg.get('mysql', 'user', fallback='root').strip()
+        password = cfg.get('mysql', 'password', fallback='').strip()
+        database_name = cfg.get('mysql', 'database', fallback='chat1').strip()
+        return host, user, password, database_name
+    
+    def resolve_env(self, value):
+        # Resolve environment variables in the config values
+        return os.getenv(value, value)  # If the env var is not set, return the original value
+    
     def half_connection(self, max_attempts = 3):
         # Checking and establishing the connection with MySQL.
         attempts = 0

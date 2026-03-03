@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.vscode/
+.chat/
+t2.py
+users.txt
+test/
