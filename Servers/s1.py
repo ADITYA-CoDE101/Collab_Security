@@ -7,6 +7,7 @@ import threading
 from initialize import Utils, Authentication, Database
 from dotenv import load_dotenv
 import json
+import OpenSSL
 
 
 load_dotenv()  # Load environment variables from .env file
