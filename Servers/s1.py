@@ -1,21 +1,24 @@
+import os
 import sys
 import time
 import signal
 import socket
 import threading
 from initialize import Utils, Authentication, Database
+from dotenv import load_dotenv
 import json
 
 
-IP = "0.0.0.0"
-PORT = 9898
+load_dotenv()  # Load environment variables from .env file
+
+IP = os.getenv("HOST", "localhost")  # Default to localhost if not set
+PORT = int(os.getenv("PORT", 5000))  # Default to 12345 if not set
 UACL = [] #  Unauthenticated Client List
 ACL = [] #   Authenticated Client List
 CLIENTS = [] # All Clients List
 CLIENTS_LOCK = threading.Lock()
 
 utls = Utils()
-
 
 def broadcast(message, sender_sock):
     with CLIENTS_LOCK:

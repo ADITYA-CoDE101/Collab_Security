@@ -124,13 +124,8 @@ admin_pass_hash =
 class Database(Configration, Utils):
     def __init__(self):
         super().__init__()
+        load_dotenv()  # Load environment variables from .env file
         self.check_config()
-        # cfg = ConfigParser()
-        # cfg_path = os.path.join(self.directory, self.config_file)
-        # read_files = cfg.read(cfg_path)
-        # if not read_files or not cfg.has_section('mysql'):
-        #     # warn and use defaults
-        #     print(f"[ ! ] Warning: config not found at {cfg_path}; using defaults")
         host, user, password, database_name = self.fetch_db_credentials()
         self.host = self.resolve_env(host)
         self.user = self.resolve_env(user)
