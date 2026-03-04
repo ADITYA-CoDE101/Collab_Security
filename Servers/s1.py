@@ -14,9 +14,9 @@ load_dotenv()  # Load environment variables from .env file
 
 IP = os.getenv("HOST", "localhost")  # Default to localhost if not set
 PORT = int(os.getenv("PORT", 5000))  # Default to 12345 if not set
-UACL = [] #  Unauthenticated Client List
-ACL = [] #   Authenticated Client List
-CLIENTS = [] # All Clients List
+UACL = []                            # Unauthenticated Client List
+ACL = []                             # Authenticated Client List
+CLIENTS = []                         # All Clients List
 CLIENTS_LOCK = threading.Lock()
 
 utls = Utils()
@@ -82,8 +82,8 @@ def terminator(client_sock, client_sock_addrs, cmd=True):
             print(f"[3]Error sending DISCONNECTED message to {client_sock}: {e}")
             
     with CLIENTS_LOCK:        
-        if client_sock in ACL:                  # Since client will not be in the ACL and CLIENTS list befor Authentication
-            ACL.remove(client_sock)                 # So we need condition, if client exist in these list then remove otherwise just close the client as is.
+        if client_sock in ACL:                  
+            ACL.remove(client_sock)            
         if client_sock in CLIENTS:
             CLIENTS.remove(client_sock)
 
@@ -142,9 +142,9 @@ def authentication(client_sock, client_address):
 def initialize():
     db = Database()
     if not db.db_check():
-        print("[ ! ] The credentials for the database are invalide!")
-        sys.exit(0)
-
+        print("[ ! ] Database initialization failed!")
+        sys.exit(1)  
+    
 def main():
     initialize()
     global server
