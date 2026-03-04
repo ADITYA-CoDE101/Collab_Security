@@ -8,7 +8,7 @@ import os
 import sys
 import time
 import bcrypt
-
+import threading
 
 class Utils:
     # Utilities
@@ -122,10 +122,20 @@ admin_pass_hash =
 
 
 class Database(Configration, Utils):
+    
+    _initialized = False
+    _init_lock = threading.Lock()
+    
     def __init__(self):
         super().__init__()
         load_dotenv()  # Load environment variables from .env file
-        self.check_config()
+        
+        if not Database._initialized:
+            self.check_config()
+            
+            with Database._init_lock:
+                Database._initialized = True
+        # self.check_config()
         host, user, password, database_name = self.fetch_db_credentials()
         self.host = self.resolve_env(host)
         self.user = self.resolve_env(user)
