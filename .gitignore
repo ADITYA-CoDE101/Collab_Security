@@ -7,8 +7,3 @@ t2.py
 users.txt
 <<<<<<< HEAD
 test/
-Servers/TLS_SSL
-=======
-TCP-communication-/test
-Servers/TLS_SSL/
->>>>>>> SSL/TSL
