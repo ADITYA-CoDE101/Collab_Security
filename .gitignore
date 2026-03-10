@@ -3,7 +3,5 @@ __pycache__/
 *.pyc
 .vscode/
 .chat/
-t2.py
-users.txt
-<<<<<<< HEAD
 test/
+Server/TLS_SSL/

@@ -174,9 +174,9 @@ def main():
     while True:
         try:
             client, address = server.accept()
-            print(f"[+] Accepted connection from {address}")
+            print(f"[ + ] Accepted connection from {address}")
             #-----------------------------------
-            print("[+]  Proceeding with the TLS Tunneling",end="")
+            print("[ + ]  Proceeding with the TLS Tunneling",end="")
             utls.loading()
             tls_client = context.wrap_socket(client, server_side=True)  #wrap the client socket with TLS
             with CLIENTS_LOCK:
