@@ -3,6 +3,7 @@ import threading
 import sys
 import time
 import select  # need to study more about this
+import ssl
 
 DESTINATION = "127.0.0.1"
 PORT = 9898
@@ -117,12 +118,23 @@ def terminator(client, reason=None, req = False):
     
     
 def main():
+    raw_client = None
     client = None
+    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
+    context.check_hostname = False
+    context.verify_mode = ssl.CERT_NONE
     
     try:
-        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client.connect((DESTINATION, PORT))
-
+        #---------Raw socket ----------#
+        raw_client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        raw_client.connect((DESTINATION, PORT))
+        #---------TLS handshake ---------#
+        client = context.wrap_socket(raw_client, server_hostname=DESTINATION)
+        print(f"Connected to server at {DESTINATION}:{PORT} with TLS.")
+        print("[+] TLS connection established")
+        print("TLS Version:", client.version())
+        print("Cipher:", client.cipher())
+        #--------Start communication threads ---------#
         sender_thread = threading.Thread(target=send, args=(client,))
         receiver_thread = threading.Thread(target=receive, args=(client,))
 

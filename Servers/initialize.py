@@ -8,7 +8,7 @@ import os
 import sys
 import time
 import bcrypt
-
+import threading
 
 class Utils:
     # Utilities
@@ -122,10 +122,20 @@ admin_pass_hash =
 
 
 class Database(Configration, Utils):
+    
+    _initialized = False
+    _init_lock = threading.Lock()
+    
     def __init__(self):
         super().__init__()
         load_dotenv()  # Load environment variables from .env file
-        self.check_config()
+        
+        if not Database._initialized:
+            self.check_config()
+            
+            with Database._init_lock:
+                Database._initialized = True
+        # self.check_config()
         host, user, password, database_name = self.fetch_db_credentials()
         self.host = self.resolve_env(host)
         self.user = self.resolve_env(user)
@@ -302,7 +312,7 @@ class Database(Configration, Utils):
         attempts = 0
         while attempts < max_attempts:
             try:
-                print("[ * ] Connecting with the database",end=" ")
+                print("[ + ] Connecting with the database",end="")
                 self.loading()
                 #-----------Connection Credentials---------------
                 
@@ -353,22 +363,22 @@ class Database(Configration, Utils):
 #---------------------------------------------------------------------------------------------
 
 class Authentication(Database):
-    def __init__(self, client_sock, address):
+    def __init__(self, tls_client_sock, address):
         super().__init__()
-        self.client_sock = client_sock
+        self.tls_client_sock = tls_client_sock
         self.address = address
         self.username = ""
 
     def signup(self):
         # function to signup for the users
-        self.client_sock.send(b"Enter Username: ")
-        username = self.client_sock.recv(1024).decode().strip()
-        self.client_sock.send(b"Enter Password: ")
-        password = self.client_sock.recv(1024).decode().strip()
+        self.tls_client_sock.send(b"Enter Username: ")
+        username = self.tls_client_sock.recv(1024).decode().strip()
+        self.tls_client_sock.send(b"Enter Password: ")
+        password = self.tls_client_sock.recv(1024).decode().strip()
 
         # Check if the username already exists
         if self.is_username_taken(username):
-            self.client_sock.send(b"Username already taken. Please choose another.\n")
+            self.tls_client_sock.send(b"Username already taken. Please choose another.\n")
             return
         
         # Hash the password before saving it to the database.
@@ -389,8 +399,8 @@ class Authentication(Database):
                     fcnx.commit()
 
                     # Send confirmation message to the client
-                    self.client_sock.send(b"Signup successful!\n")
-                    self.client_sock.send(f"Hello {username}.\n".encode('utf-8'))
+                    self.tls_client_sock.send(b"Signup successful!\n")
+                    self.tls_client_sock.send(f"Hello {username}.\n".encode('utf-8'))
                     self.username = username # we will be refering the user as its username instead of there ip(address)
 
                     print(f"New user signed up: {username}")
@@ -405,7 +415,7 @@ class Authentication(Database):
                         pass
         except Error as e:
             print(f"Database error during signup: {e}")
-            self.client_sock.send(b"An error occurred while processing your signup. Please try again later.\n")
+            self.tls_client_sock.send(b"An error occurred while processing your signup. Please try again later.\n")
 
 
 
@@ -437,10 +447,10 @@ class Authentication(Database):
         Simple signin flow over a socket.
         Returns True on success, False on failure.
         """
-        self.client_sock.send(b"Enter Username: ")
-        username = self.client_sock.recv(1024).decode().strip()
-        self.client_sock.send(b"Enter Password: ")
-        password = self.client_sock.recv(1024).decode().strip()
+        self.tls_client_sock.send(b"Enter Username: ")
+        username = self.tls_client_sock.recv(1024).decode().strip()
+        self.tls_client_sock.send(b"Enter Password: ")
+        password = self.tls_client_sock.recv(1024).decode().strip()
 
         attempts = 0
         while attempts < max_attempts:
@@ -455,8 +465,8 @@ class Authentication(Database):
                     cursor.execute('SELECT Password FROM users WHERE Username = %s', (username,))
                     row = cursor.fetchone()
                     if not row:
-                        self.client_sock.send(b"Invalid username or password.")
-                        self.client_sock.send(b"Username does not exist.")
+                        self.tls_client_sock.send(b"Invalid username or password.")
+                        self.tls_client_sock.send(b"Username does not exist.")
                         return False
 
                     stored = row[0] if isinstance(row, tuple) else row.get('Password')  # may be bytes or str
@@ -469,21 +479,21 @@ class Authentication(Database):
                         stored_bytes = str(stored).encode('utf-8')
 
                     if bcrypt.checkpw(password.encode('utf-8'), stored_bytes):
-                        self.client_sock.send(b"Signin successful!")
+                        self.tls_client_sock.send(b"Signin successful!")
                         self.username = username
-                        self.client_sock.send(f"\nWelcome back {self.username}.".encode('utf-8'))
+                        self.tls_client_sock.send(f"\nWelcome back {self.username}.".encode('utf-8'))
                         return True
                     else:
                         attempts += 1
-                        self.client_sock.send(b"Invalid username or password.")
-                        self.client_sock.send(f"[ * ] Retrying ({attempts}/{max_attempts})...".encode('utf-8'))
+                        self.tls_client_sock.send(b"Invalid username or password.")
+                        self.tls_client_sock.send(f"[ * ] Retrying ({attempts}/{max_attempts})...".encode('utf-8'))
                         if attempts < max_attempts:
-                            self.client_sock.send(b"Enter Username: ")
-                            username = self.client_sock.recv(1024).decode().strip()
-                            self.client_sock.send(b"Enter Password: ")
-                            password = self.client_sock.recv(1024).decode().strip()
+                            self.tls_client_sock.send(b"Enter Username: ")
+                            username = self.tls_client_sock.recv(1024).decode().strip()
+                            self.tls_client_sock.send(b"Enter Password: ")
+                            password = self.tls_client_sock.recv(1024).decode().strip()
                         else:
-                            self.client_sock.send(b"Too many failed attempts.\n---EXITING---")
+                            self.tls_client_sock.send(b"Too many failed attempts.\n---EXITING---")
                             print(f"[8]Too many failed attempts. Connection closed with {self.address}")
                             cursor.close()
                             fcnx.close()
