@@ -1,7 +1,9 @@
 .env
 __pycache__/
+Servers/__pycache__/
 *.pyc
 .vscode/
 .chat/
 test/
-/home/dell/Desktop/Coding_shortcut/2Project/backup_files/TCP-communication-/Servers/TLS_SSL/
+Servers/TLS_SSL/
+
