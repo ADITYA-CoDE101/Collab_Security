@@ -174,14 +174,13 @@ def main():
     while True:
         try:
             client, address = server.accept()
-            with CLIENTS_LOCK:
-                UACL.append(client)    # add to unauthenticated clients list
             print(f"[+] Accepted connection from {address}")
-
             #-----------------------------------
             print("[+]  Proceeding with the TLS Tunneling",end="")
             utls.loading()
             tls_client = context.wrap_socket(client, server_side=True)  #wrap the client socket with TLS
+            with CLIENTS_LOCK:
+                UACL.append(tls_client)    # add to unauthenticated clients list
             threading.Thread(target=handle_client, args=(tls_client, address)).start()
             #-----------------------------------
 
