@@ -5,7 +5,7 @@ Servers/__pycache__/
 .vscode/
 .chat/
 test/
-Servers/TLS_SSL/
+ToDO.txt
 
 # --- TLS certificates and keys ---
 # Private keys MUST NEVER be committed
