@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import json
 import OpenSSL
 import ssl
+from ServTSL import TLSConfig
 
 
 load_dotenv()  # Load environment variables from .env file
@@ -167,18 +168,31 @@ def main():
     utls.simple_spinner()
     
     # TLS configrations 10/3/2026
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER) 
-    context.load_cert_chain(certfile="/home/dell/Desktop/Coding_shortcut/2Project/backup_files/TCP-communication-/Servers/TLS_SSL/server.crt", keyfile="/home/dell/Desktop/Coding_shortcut/2Project/backup_files/TCP-communication-/Servers/TLS_SSL/server.key")
-    # server = context.wrap_socket(server, server_side=True)
+    # context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    # context.minimum_version = ssl.TLSVersion.TLSv1_3
+    # context.load_cert_chain(certfile="/home/dell/Desktop/Coding_shortcut/2Project/backup_files/TCP-communication-/Servers/TLS_SSL/cert.pem", keyfile="/home/dell/Desktop/Coding_shortcut/2Project/backup_files/TCP-communication-/Servers/TLS_SSL/key.pem")
+    # # server = context.wrap_socket(server, server_side=True)
+
+    # Paths are loaded from .env via TLSConfig (SSL_CERT_PATH, SSL_KEY_PATH, SSL_CA_PATH).
+    # Empty strings are passed as fallbacks — if any env var is missing, ssl will raise
+    # a clear FileNotFoundError rather than silently using a wrong path.
+    tls_cfg = TLSConfig(
+        certfile="",
+        keyfile="",
+        cafile="",
+        raw_socket=server
+    )
+    ssl_ctx = tls_cfg.create_context()  # builds & returns the ssl.SSLContext from .env values
 
     while True:
         try:
             client, address = server.accept()
-            print(f"[ + ] Accepted connection from {address}")
-            #-----------------------------------
-            print("[ + ]  Proceeding with the TLS Tunneling",end="")
+            print(f"[ + ]    Accepted connection from {address}")
+            print("[ + ]    Proceeding with the TLS Tunneling",end="")
             utls.loading()
-            tls_client = context.wrap_socket(client, server_side=True)  #wrap the client socket with TLS
+            print("\n")
+
+            tls_client = ssl_ctx.wrap_socket(client, server_side=True)  # wrap with TLS
             with CLIENTS_LOCK:
                 UACL.append(tls_client)    # add to unauthenticated clients list
             threading.Thread(target=handle_client, args=(tls_client, address)).start()

@@ -7,3 +7,11 @@ Servers/__pycache__/
 test/
 Servers/TLS_SSL/
 
+# --- TLS certificates and keys ---
+# Private keys MUST NEVER be committed
+certs/*.pem
+certs/*.key
+certs/*.crt
+certs/*.srl
+
+
