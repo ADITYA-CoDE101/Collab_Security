@@ -9,6 +9,10 @@ import sys
 import time
 import bcrypt
 import threading
+from protocol import (
+    pkt_system, pkt_auth_response,
+    AUTH_SIGNUP, AUTH_SIGNIN,
+)
 
 class Utils:
     # Utilities
@@ -369,18 +373,28 @@ class Authentication(Database):
         self.address = address
         self.username = ""
 
-    def signup(self):
-        # function to signup for the users
-        self.tls_client_sock.send(b"Enter Username: ")
-        username = self.tls_client_sock.recv(1024).decode().strip()
-        self.tls_client_sock.send(b"Enter Password: ")
-        password = self.tls_client_sock.recv(1024).decode().strip()
+    def signup(self, payload: dict) -> bool:
+        """
+        Sign up a new user using the pre-parsed JSON auth payload.
+        payload must contain 'username' and 'password' keys.
+        Returns True on success, False on failure.
+        """
+        username = payload.get("username", "").strip()
+        password = payload.get("password", "").strip()
+
+        if not username or not password:
+            self.tls_client_sock.send(pkt_auth_response(
+                "error", "Username and password are required."
+            ))
+            return False
 
         # Check if the username already exists
         if self.is_username_taken(username):
-            self.tls_client_sock.send(b"Username already taken. Please choose another.\n")
-            return
-        
+            self.tls_client_sock.send(pkt_auth_response(
+                "error", "Username already taken. Please choose another."
+            ))
+            return False
+
         # Hash the password before saving it to the database.
         # Store as utf-8 string so it can be saved into TEXT/VARCHAR columns.
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
@@ -398,12 +412,15 @@ class Authentication(Database):
                     )
                     fcnx.commit()
 
-                    # Send confirmation message to the client
-                    self.tls_client_sock.send(b"Signup successful!\n")
-                    self.tls_client_sock.send(f"Hello {username}.\n".encode('utf-8'))
-                    self.username = username # we will be refering the user as its username instead of there ip(address)
-
-                    print(f"New user signed up: {username}")
+                    # Send JSON confirmation to the client
+                    self.tls_client_sock.send(pkt_auth_response(
+                        "ok",
+                        f"Signup successful! Welcome, {username}.",
+                        username=username,
+                    ))
+                    self.username = username
+                    print(f"[ + ] New user signed up: {username}")
+                    return True
                 finally:
                     try:
                         cursor.close()
@@ -415,7 +432,10 @@ class Authentication(Database):
                         pass
         except Error as e:
             print(f"Database error during signup: {e}")
-            self.tls_client_sock.send(b"An error occurred while processing your signup. Please try again later.\n")
+            self.tls_client_sock.send(pkt_auth_response(
+                "error", "A server error occurred during signup. Please try again."
+            ))
+        return False
 
 
 
@@ -442,75 +462,80 @@ class Authentication(Database):
             print(f"Database error while checking username: {e}")
             return False
         
-    def signin(self, max_attempts = 3):
+    def signin(self, payload: dict) -> bool:
         """
-        Simple signin flow over a socket.
+        Sign-in using the pre-parsed JSON auth payload.
+        payload must contain 'username' and 'password' keys.
         Returns True on success, False on failure.
         """
-        self.tls_client_sock.send(b"Enter Username: ")
-        username = self.tls_client_sock.recv(1024).decode().strip()
-        self.tls_client_sock.send(b"Enter Password: ")
-        password = self.tls_client_sock.recv(1024).decode().strip()
+        username = payload.get("username", "").strip()
+        password = payload.get("password", "").strip()
 
-        attempts = 0
-        while attempts < max_attempts:
+        if not username or not password:
+            self.tls_client_sock.send(pkt_auth_response(
+                "error", "Username and password are required."
+            ))
+            return False
+
+        try:
+            fcnx = self.full_connection()
+            if not fcnx:
+                self.tls_client_sock.send(pkt_auth_response(
+                    "error", "Database unavailable. Please try again later."
+                ))
+                return False
+
+            cursor = fcnx.cursor()
             try:
-                fcnx = self.full_connection()
-                if not fcnx:
-                    print(b"Database unavailable. Try later.\n")
+                cursor.execute('SELECT Password FROM users WHERE Username = %s', (username,))
+                row = cursor.fetchone()
+                if not row:
+                    self.tls_client_sock.send(pkt_auth_response(
+                        "error", "Invalid username or password."
+                    ))
                     return False
 
-                cursor = fcnx.cursor()
+                stored = row[0] if isinstance(row, tuple) else row.get('Password')
+                # Normalize to bytes for bcrypt
+                if isinstance(stored, str):
+                    stored_bytes = stored.encode('utf-8')
+                elif isinstance(stored, bytes):
+                    stored_bytes = stored
+                else:
+                    stored_bytes = str(stored).encode('utf-8')
+
+                if bcrypt.checkpw(password.encode('utf-8'), stored_bytes):
+                    self.tls_client_sock.send(pkt_auth_response(
+                        "ok",
+                        f"Welcome back, {username}!",
+                        username=username,
+                    ))
+                    self.username = username
+                    print(f"[ + ] User signed in: {username}")
+                    return True
+                else:
+                    self.tls_client_sock.send(pkt_auth_response(
+                        "error", "Invalid username or password."
+                    ))
+                    print(f"[ - ] Failed signin attempt for: {username} from {self.address}")
+                    return False
+
+            finally:
                 try:
-                    cursor.execute('SELECT Password FROM users WHERE Username = %s', (username,))
-                    row = cursor.fetchone()
-                    if not row:
-                        self.tls_client_sock.send(b"Invalid username or password.")
-                        self.tls_client_sock.send(b"Username does not exist.")
-                        return False
+                    cursor.close()
+                except Exception:
+                    pass
+                try:
+                    fcnx.close()
+                except Exception:
+                    pass
 
-                    stored = row[0] if isinstance(row, tuple) else row.get('Password')  # may be bytes or str
-                    # Normalize to bytes for bcrypt
-                    if isinstance(stored, str):
-                        stored_bytes = stored.encode('utf-8')
-                    elif isinstance(stored, bytes):
-                        stored_bytes = stored
-                    else:
-                        stored_bytes = str(stored).encode('utf-8')
-
-                    if bcrypt.checkpw(password.encode('utf-8'), stored_bytes):
-                        self.tls_client_sock.send(b"Signin successful!")
-                        self.username = username
-                        self.tls_client_sock.send(f"\nWelcome back {self.username}.".encode('utf-8'))
-                        return True
-                    else:
-                        attempts += 1
-                        self.tls_client_sock.send(b"Invalid username or password.")
-                        self.tls_client_sock.send(f"[ * ] Retrying ({attempts}/{max_attempts})...".encode('utf-8'))
-                        if attempts < max_attempts:
-                            self.tls_client_sock.send(b"Enter Username: ")
-                            username = self.tls_client_sock.recv(1024).decode().strip()
-                            self.tls_client_sock.send(b"Enter Password: ")
-                            password = self.tls_client_sock.recv(1024).decode().strip()
-                        else:
-                            self.tls_client_sock.send(b"Too many failed attempts.\n---EXITING---")
-                            print(f"[8]Too many failed attempts. Connection closed with {self.address}")
-                            cursor.close()
-                            fcnx.close()
-                            return False
-                finally:
-                    try:
-                        cursor.close()
-                    except Exception:
-                        pass
-                    try:
-                        fcnx.close()
-                    except Exception:
-                        pass
-            except Error as e:
-                print(f"Database error during signin: {e}")
-                print(b"An error occurred. Please try again later.\n")
-                return False
+        except Error as e:
+            print(f"Database error during signin: {e}")
+            self.tls_client_sock.send(pkt_auth_response(
+                "error", "A server error occurred during signin. Please try again."
+            ))
+            return False
         
 # class Initialize(Configration, Database):
 #     def __init__(self):

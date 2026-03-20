@@ -3,10 +3,14 @@ import threading
 import sys
 import time
 import select  # need to study more about this
+from protocol import (
+    parse_packet,
+    pkt_broadcast, pkt_disconnect, pkt_auth,
+    EVT_CONNECT, EVT_AUTH_RESP, EVT_BROADCAST, EVT_SYSTEM, EVT_DISCONNECT
+)
 
 DESTINATION = "127.0.0.1"
 PORT = 9898
-DISCONNECT_REQUEST = "RQST-> DISCONNECT"
 EXIT = threading.Event()
 
 #//--------------------------------------------------------------------------//
@@ -45,7 +49,7 @@ def send(client):
             reason = "Client requested EXIT."
             # send the request explicitly then clean up (terminator does cleanup)
             try:
-                client.send(f"{DISCONNECT_REQUEST}: {reason}".encode())
+                client.send(pkt_disconnect(reason))
             except Exception:
                 # sending may fail if socket already broken; ignore
                 pass
@@ -53,7 +57,7 @@ def send(client):
             return
 
         try:
-            client.send(mesg.encode())
+            client.send(pkt_broadcast(username="", data=mesg))
         except Exception as e:
             print("[1] Connection Lost ...", f"\n\t└─>[ ERROR ]: {e}")
             terminator(client, e, req=False)
@@ -63,27 +67,72 @@ def send(client):
 def receive(client):
     while not EXIT.is_set():
         try:
-            response_bytes = client.recv(4092)
+            response_bytes = client.recv(4096)
             if not response_bytes:
                 print("[2] Connection Lost...")
                 print("Connection closed by the server.")
                 terminator(client, "no response", req=False)
                 return
 
-            response = response_bytes.decode(errors="replace")
-            msg = response.strip()
+            packet = parse_packet(response_bytes)
+            if packet is None:
+                # Fallback to printing unparseable data
+                raw = response_bytes.decode(errors="replace").strip()
+                if raw == "DISCONNECTED":
+                    print("disconnected from server side.")
+                    terminator(client, "server requested disconnect", req=False)
+                    return
+                if raw:
+                    print(f"\n[RAW] {raw}")
+                continue
 
-            # handle server-initiated disconnects or requests
-            if msg == "DISCONNECTED":
-                print("disconnected from server side.")
+            event   = packet.get("event")
+            payload = packet.get("payload", {})
+
+            if event == EVT_CONNECT:
+                print(f"\n[ SERVER ] {payload.get('message', '')}")
+                if payload.get('hint'):
+                    print(f"[ SERVER ] {payload.get('hint')}")
+
+            elif event == EVT_SYSTEM:
+                # This includes prompts for username/password from initialize.py
+                msg = payload.get("message", "")
+                print(f"\n[ SYSTEM ] {msg}")
+                # Intercept auth prompts to drive local input
+                if "Enter Username:" in msg or "Enter Password:" in msg:
+                    val = input("> ").strip()
+                    client.send(val.encode("utf-8")) # Send raw back temporarily during handshake (handled by initialize.py raw reads)
+                elif "Type [ 1 ] for signUp or [ 2 ] for SignIn" in msg:
+                    val = input("> ").strip()
+                    client.send(val.encode("utf-8"))
+
+            elif event == EVT_AUTH_RESP:
+                status = payload.get("status")
+                msg    = payload.get("message", "")
+                if status == "ok":
+                    print(f"\n[ AUTH ] {msg} (Username: {payload.get('username')})")
+                else:
+                    print(f"\n[ AUTH ERROR ] {msg}")
+
+            elif event == EVT_BROADCAST:
+                sender = payload.get("username", "Unknown")
+                data   = payload.get("data", "")
+                flag   = payload.get("flag", "broadcast")
+                print(f"\n[{flag.upper()}] {sender} <─┘ {data}")
+
+            elif event == EVT_DISCONNECT:
+                reason = payload.get("reason", "")
+                print(f"\n[ DISCONNECT ] Server requested disconnect: {reason}")
                 terminator(client, "server requested disconnect", req=False)
                 return
 
-            print(f"\n\t\t\t\t\t\t{response} <─┘")
+            else:
+                print(f"\n[ ? ] Unhandled event '{event}': {payload}")
+
         except Exception as e:
             print("[3] Connection Lost ...",
                   f"\n\t└─>[ ERROR ]: {e}")
-            terminator(client, e, req=True)                             # Termination
+            terminator(client, str(e), req=True)                             # Termination
             return
 
 def terminator(client, reason=None, req = False):
@@ -93,7 +142,8 @@ def terminator(client, reason=None, req = False):
         return
     if req:
         try:
-            client.send(f"{DISCONNECT_REQUEST}: {reason}".encode())    # >[2]
+            # We now send a clean JSON disconnect packet
+            client.send(pkt_disconnect(str(reason)))
         except Exception as e:
             print(f"[ ERROR ]: while terminating[1]: {e}")
 

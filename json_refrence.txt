@@ -1,0 +1,55 @@
+1. Standered Structure:
+         		
+         
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{
+	"event": "connect, broadcast, disconnect, Authentication, shell command, AI query, broadcast only to AI",
+	"payload": {
+		
+	}
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+         
+2. Message Broadcast:
+ 		
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{
+	"event": "broadcast",
+	"payload": {
+		"role": "Member, admin, organiser, etc",
+		"username": "username",
+		"to"  : "broadcast \ username",
+		"Data": "message",
+		"timeStamp": "DD MM YY  HH MM SS",
+		
+	}
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ 
+ 3. Authentication
+  
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{
+	"event": "Autherntication",
+	"payload":{
+		"role": "Member , admin ",
+		"username": "username",
+		"password": "hashed Pass",
+		"timeStamp": "DD MM YY  HH MM SS",
+		}
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+  
+  4. connection termination request
+  
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+{
+	"event": "disconbect",
+	"payload": {
+		
+	}
+}
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
