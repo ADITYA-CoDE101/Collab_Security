@@ -62,6 +62,10 @@ def send(client):
     # Wait until authentication is confirmed before reading any user input.
     AUTH_DONE.wait()
 
+    # To print the ">" prompt after authentication, to indecate the input field.
+    sys.stdout.write("> ")      # it writes the prompts to the terminal.
+    sys.stdout.flush()          # ??? need to study it
+
     # poll stdin with a short timeout so we can observe EXIT
     while not EXIT.is_set():
         # if socket closed, stop
@@ -83,6 +87,19 @@ def send(client):
             if not mesg:        # EOF on stdin
                 continue
             mesg = mesg.rstrip("\n")
+            
+            # Catch empty or spaces-only input, move UP and refresh the prompt
+            if mesg.strip() == "":
+                sys.stdout.write("\033[1A\r\033[K> ")
+                sys.stdout.flush()
+                continue
+                
+            print(f"Log: {mesg}") # 
+
+            # To print the ">" prompt after authentication, to indecate the input field.
+            sys.stdout.write("> ")      # it writes the prompts to the terminal.
+            sys.stdout.flush()          # ??? need to study it
+
         except Exception as e:
             print("[1] Input read error:", e)
             terminator(client, e, req=False)
@@ -163,8 +180,34 @@ def receive(client):
                 if(data == ""):
                     continue
                 flag   = payload.get("flag", "broadcast")
-                print(f"\n┌──({flag.upper()}@{sender})\n└─> {data}")
 
+#              #———————————————————————————————————————————————————————————
+                # To fix [ bug ]
+                """
+                    ┌──(BROADCAST_ALL@u1)
+                    └─> s
+                    >    [ bug ]
+                    ┌──(BROADCAST_ALL@u1)
+                    └─> ds
+                    > 
+                """
+                # as we see every time the we get the responce we get the new line.
+                # But if i left the ">" input field empty and another responce came in the ">" input field remains there.
+                # to fix this we used "\r\033[K" to clear the line.
+
+                sys.stdout.write("\r\033[K")
+                sys.stdout.flush()
+               #———————————————————————————————————————————————————————————
+               # removed the \n at the start of the print(f"┌──...) statement because erasing the old line means we don't need to jump to a new line anymore!
+                print(f"┌──({flag.upper()}@{sender})\n└─> {data}")
+                
+                
+                # To print the ">" prompt after authentication, to indecate the input field.
+                sys.stdout.write("> ")      # it writes the prompts to the terminal.
+                sys.stdout.flush()          # ??? need to study it
+                # As we receive the responce from the Client(throug server ) the "\n" newline automaticlay prompt us to the next line.
+                # Due to this reason we left with the blank input field without ">" prompt.
+                # to fix this we add these two lines here as well so as we get to the next line we get the ">" prompt.
                 """
                 ┌──(dell㉿kali)-[~]
                 └─$ 
