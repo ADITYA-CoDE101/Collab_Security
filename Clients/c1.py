@@ -89,12 +89,12 @@ def send(client):
             mesg = mesg.rstrip("\n")
             
             # Catch empty or spaces-only input, move UP and refresh the prompt
-            if mesg.strip() == "":
+            if mesg.strip() == "":      
                 sys.stdout.write("\033[1A\r\033[K> ")
-                sys.stdout.flush()
+                sys.stdout.flush() #     └──────────> Need to study this more. ???
                 continue
                 
-            print(f"Log: {mesg}") # 
+            # print(f"Log: {mesg}") # 
 
             # To print the ">" prompt after authentication, to indecate the input field.
             sys.stdout.write("> ")      # it writes the prompts to the terminal.

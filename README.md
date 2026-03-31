@@ -1,55 +1,59 @@
-# Collab_Security_Platform-
+# Collab_Security_Platform
 ![Python](https://img.shields.io/badge/Python-3.x-blue)
 ![MySQL](https://img.shields.io/badge/Database-MySQL-orange)
-![Security](https://img.shields.io/badge/Security-bcrypt-green)
+![Security](https://img.shields.io/badge/Security-mTLS_%2B_bcrypt-green)
+![Data](https://img.shields.io/badge/Protocol-JSON-yellow)
 ![Architecture](https://img.shields.io/badge/Architecture-MultiThreaded-red)
 ![Status](https://img.shields.io/badge/Status-Actively_Developed-brightgreen)
 
 ---
 
-## 🔐 Secure Multi-Threaded TCP Chat Server
+## 🔐 Secure Multi-Threaded TCP Chat Platform
 
 ## 📌 Overview
 
 This project is a **multi-threaded TCP Chat Server** built using Python.  
 It implements secure authentication with MySQL integration and bcrypt password hashing.
 
-The system is designed with modular architecture so it can be extended into a **fully TLS-enabled secure communication system** in future versions.
+The system is designed with a modular architecture and features a **fully TLS-enabled secure communication system** utilizing **Mutual TLS (mTLS)** for two-way authentication, alongside structured **JSON data framing** for robust data transfer.
 
 ---
 
 ## 🏗 Architecture
-```
-            ┌─────────────────────┐
-            │        Client        │
-            │  (Threaded I/O)      │
-            └──────────┬──────────┘
-                       │ TCP
-            ┌──────────▼──────────┐
-            │   Chat Server Core   │
-            │  (Multi-Threaded)    │
-            ├──────────┬──────────┤
-            │ Auth Layer│Broadcast │
-            ├──────────┴──────────┤
-            │  Database Layer      │
-            │   (MySQL)            │
-            └─────────────────────┘
+```text
+            ┌───────────────────────┐
+            │        Client         │
+            │   (Threaded I/O)      │
+            └──────────┬────────────┘
+                       │ mTLS Tunnel (JSON)
+            ┌──────────▼────────────┐
+            │   Chat Server Core    │
+            │   (Multi-Threaded)    │
+            ├──────────┬────────────┤
+            │Auth Layer│ Broadcast  │
+            ├──────────┴────────────┤
+            │   Database Layer      │
+            │      (MySQL)          │
+            └───────────────────────┘
 
 .TCP
 └── Multi-Threaded Server
-├── Authentication Layer
-├── Database Layer (MySQL)
-├── Broadcast System
-└── Client Management (ACL / UACL)
-
+    ├── Mutual TLS (mTLS) Security Layer
+    ├── JSON Protocol Communication Layer
+    ├── Authentication Layer (bcrypt)
+    ├── Database Layer (MySQL)
+    ├── Broadcast System
+    └── Client Management (ACL / UACL)
 ```
-
 
 ### Core Files
 
-- `server.py` → Main multi-threaded server
-- `client.py` → Client-side communication logic
-- `initialize.py` → Database, authentication, configuration logic
+- `Servers/s1.py` → Main multi-threaded server with mTLS encryption
+- `Servers/initialize.py` → Database, authentication, configuration logic
+- `Servers/protocol.py` → Standardized JSON packet builder and parser
+- `Servers/ServTSL.py` → SSL/TLS Context generation for Server
+- `Clients/c1.py` → Secure client with mTLS support
+- `Clients/ClientTLS.py` → SSL/TLS Context generation for Client
 - `Config/server.confg` → Server configuration file
 
 ---
@@ -58,17 +62,19 @@ The system is designed with modular architecture so it can be extended into a **
 
 ## 🐍 Language
 - Python 3.x
-- Mysql
+- MySQL
 
 ---
 
-## 🌐 Networking
+## 🌐 Networking & Data
 
 | Module | Purpose |
 |---------|----------|
 | `socket` | TCP communication |
+| `ssl` | mTLS Network Encryption |
 | `threading` | Multi-client concurrency |
 | `select` | Non-blocking input handling (client side) |
+| `json` | Structured message framing |
 | `signal` | Graceful shutdown handling |
 
 
@@ -84,21 +90,12 @@ The system is designed with modular architecture so it can be extended into a **
 
 ---
 
-## 🔐 Security
-
-| Technology | Purpose |
-|------------|----------|
-| `bcrypt` | Password hashing |
-| Login attempt limit | Brute-force mitigation |
-| Hashed password storage | No plaintext credentials |
-
----
-
 ## 🔐 Security Stack
 
 | Technology | Purpose |
 |------------|----------|
-| bcrypt | Password hashing |
+| **mTLS** (Mutual TLS) | End-to-end encryption & client-server verification |
+| **bcrypt** | Password hashing |
 | Attempt limiting | Brute-force mitigation |
 | Thread locks | Race condition prevention |
 
@@ -106,32 +103,32 @@ The system is designed with modular architecture so it can be extended into a **
 
 # 📚 Python Libraries Used & Purpose
 
-### 1️⃣ socket
-- Creating TCP server
-- Accepting connections
-- Sending/receiving data
-- Graceful shutdown
+### 1️⃣ socket & ssl
+- Creating TCP server and wrapping with TLS
+- Handshake and two-way authentication
+- Encrypted sending/receiving data
 
-### 2️⃣ threading
+### 2️⃣ json
+- Standardized data packet construction
+- Event routing based on JSON fields
+
+### 3️⃣ threading
 - Handling each client in separate threads
 - Concurrent send/receive operations
 
-### 3️⃣ mysql.connector
+### 4️⃣ mysql.connector
 - Connecting to MySQL
 - Creating database if missing
 - Creating user table
 - Executing parameterized queries
 
-### 4️⃣ bcrypt
+### 5️⃣ bcrypt
 - Hashing passwords during signup
 - Verifying passwords during signin
 
-### 5️⃣ ConfigParser
-- Reading configuration file
-- Managing MySQL credentials and server settings
-
-### 6️⃣ datetime
-- Storing user registration timestamps
+### 6️⃣ ConfigParser & dotenv
+- Reading configuration files and `.env` securely
+- Managing MySQL credentials and certificates path
 
 ### 7️⃣ select (Client Side)
 - Non-blocking stdin monitoring
@@ -144,43 +141,34 @@ The system is designed with modular architecture so it can be extended into a **
 
 This system enforces:
 
-1. No plaintext password storage
-2. Parameterized SQL queries (SQL injection resistance)
-3. Thread-safe shared resource handling
-4. Graceful socket shutdown (reduces descriptor leaks)
-5. Separation of concerns:
-   - Networking layer
-   - Authentication layer
-   - Database layer
+1. **Encrypted Network Traffic:** All communications run over an mTLS tunnel protecting against MITM and eavesdropping.
+2. **Double Identity Verification:** Server verifies the client's certificate, and the client verifies the server's certificate.
+3. **No plaintext password storage:** Passwords are hashed with bcrypt.
+4. **Structured Protocol:** Exclusively accepts JSON payloads to prevent injection or malformed data attacks.
+5. **Parameterized SQL queries:** SQL injection resistance.
+6. **Thread-safe shared resource handling:** Locks are used for shared data.
+7. **Graceful socket shutdown:** Reduces descriptor leaks.
 
 ---
 
 
-# 🛡 Threat Model (Current Version)
+# 🛡 Threat Model
 
 | Threat | Mitigation |
 |--------|------------|
-| Password theft from DB | bcrypt hashing |
-| SQL Injection | Parameterized queries |
-| Thread race conditions | Lock mechanism |
-| Broken connections | Graceful termination handling |
-
----
-
-# ⚠️ Current Security Limitation
-
-Traffic is currently transmitted over raw TCP.
-
-This means:
-- Credentials are encrypted in database
-- BUT network traffic is not yet encrypted
+| Eavesdropping / MITM | **mTLS network encryption** |
+| Rogue Server / Client Spoofing | **mTLS mutual certificate validation** |
+| Password theft from DB | **bcrypt hashing** |
+| SQL Injection | **Parameterized queries** |
+| Malformed String Protocol | **JSON packet parsing & validation** |
+| Thread race conditions | **Lock mechanism** |
 
 ---
 
 # 🔁 Implemented Features
 
-
-
+✔ **NEW:** Mutual TLS (mTLS) Authentication and End-to-End Encryption  
+✔ **NEW:** JSON Protocol Data Communication and Routing Layer  
 ✔ Multi-threaded TCP server  
 ✔ SignUp / SignIn authentication  
 ✔ Automatic database creation  
@@ -195,63 +183,37 @@ This means:
 
 # 🔐 Authentication Flow
 
-1. Client connects
-2. Server prompts for:
-   - SignUp (1)
-   - SignIn (2)
-3. Credentials are validated against MySQL
-4. Password verified using bcrypt
-5. Client added to Authenticated Client List (ACL)
-6. Messaging enabled
+1. Client initiates TCP connection.
+2. **mTLS Handshake:** Server and Client verify each other's certificates.
+3. Server prompts for JSON Auth Packet via `EVT_CONNECT`:
+   - SignUp
+   - SignIn
+4. Client responds with `EVT_AUTH` JSON payload.
+5. Credentials are validated against MySQL and bcrypt.
+6. Client added to Authenticated Client List (ACL).
+7. Server emits `EVT_AUTH_RESP` confirming login, and messaging unlocks.
 
 ---
-
-# 🧠 Client Management System
-
-| List | Description |
-|------|-------------|
-| `UACL` | Unauthenticated Clients |
-| `ACL` | Authenticated Clients |
-| `CLIENTS` | All connected clients |
-
-Thread safety is maintained using:
-
-```python
-CLIENTS_LOCK = threading.Lock()
-```
---- 
 
 ## Future Enhancements
 
 ### _Core mechanism that may get added and the END GOAL_
-  - _Collabrotive pentesting platform for pentesters_
-  - _Collective reports managment system_
+  - _Collaborative pentesting platform for pentesters_
+  - _Collective reports management system_
   - _AI enabled featuring_
   
-### 🔒 TLS / SSL Integration
-
-  - Wrap socket using Python ssl module
-  - Certificate-based encryption
-  - Secure handshake before authentication
-  - Protection against MITM attacks
-
 ### 🛡 Security Improvements
-
   - Rate limiting per IP
   - Logging & monitoring
   - Intrusion detection logic
-  - Session tokens
+  - Session tokens or Token-based authentication
 
-### Token-based authentication
-  
-  - 💬 Protocol Improvements
-  - Structured JSON message framing
-  - ommand parsing system
-  - Private messaging
+### 💬 Protocol Improvements
+  - Command parsing system
+  - Private messaging (DM logic partially implemented using flags)
   - Chat rooms
 
 ### 📦 Feature Expansion
-
   - Message history storage
   - Admin roles
   - User banning system
@@ -263,13 +225,13 @@ CLIENTS_LOCK = threading.Lock()
 ## 🖥 Installation & Setup
 
 ### Install Dependencies
-```
-pip install mysql-connector-python bcrypt
+```bash
+pip install mysql-connector-python bcrypt python-dotenv pyOpenSSL
 ``` 
 
 ### Setup MySQL
 Ensure MySQL server is running.
-```
+```bash
 sudo systemctl start mysql
 ```
 Update credentials inside:
@@ -277,28 +239,42 @@ Update credentials inside:
 Config/server.confg
 ```
 
+### Certificates Setup
+Ensure valid TLS certificates and CA keys are placed in your `.env` configured paths for `ServTSL.py` and `ClientTLS.py`.
+
 ### Run Server
-```
-python server.py
+```bash
+cd Servers
+python s1.py
 ```
 
-### 4️⃣ Run Client
-```
-python client.py
+### Run Client
+```bash
+cd Clients
+python c1.py
 ```
 
 ### 📂 Project Structure
-```
-├── server.py
-├── client.py
-├── initialize.py
+```text
+├── Servers/
+│    ├── s1.py
+│    ├── initialize.py
+│    ├── protocol.py
+│    └── ServTSL.py
+├── Clients/
+│    ├── c1.py
+│    ├── c2.py
+│    ├── protocol.py
+│    └── ClientTLS.py
 ├── Config/
 │    └── server.confg
+├── .env
+└── README.md
 ```
 
 ---
-##👨‍💻 Author
+## 👨‍💻 Author
 
 _**Aditya**_
 - Cybersecurity Enthusiast
-- Computer science and Engineering student
+- Computer Science and Engineering student
