@@ -166,6 +166,8 @@ class Database(Configration, Utils):
         return os.getenv(value, value)  # If the env var is not set, return the original value
     
     def half_connection(self, max_attempts = 3):
+        print(f"[ + ] Initializing the half-connection :- {self.host}:{self.user}:******** ",end=" ")
+        self.simple_spinner()
         # Checking and establishing the connection with MySQL.
         attempts = 0
         while attempts < max_attempts:
@@ -222,7 +224,7 @@ class Database(Configration, Utils):
             return True
         
         except Error as err:
-            if getattr(err, 'errno', None) == errorcode.ER_BAD_DB_ERROR:
+            if getattr(err, 'errno', None) == (errorcode.ER_BAD_DB_ERROR or errorcode.ER_ACCESS_DENIED_ERROR):
                 print(f"\n[ - ] Database {self.database} does not exist. Attempting to create it...")
                 if self.create_db(cursor):
                     cursor.close()
@@ -337,7 +339,7 @@ class Database(Configration, Utils):
                         self.user = input("Username: ").strip()
                         self.password = input("Password: ").strip()
                         config['user'] = self.user
-                        config['password'] = self.password
+                        config['password'] = self.password   
                         continue
                     else:
                         print("[ - ] Attempt limit reached. Please update the config file and try again.")

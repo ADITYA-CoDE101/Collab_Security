@@ -244,7 +244,7 @@ def initialize():
 
 def main():
     initialize()
-    global server
+    
     #-----------------------------------
     def signal_handler(sig, frame):
         print('\n[ * ] Shutting down gracefully...')
